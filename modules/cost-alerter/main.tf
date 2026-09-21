@@ -84,18 +84,18 @@ resource "aws_lambda_function" "cost_alerter" {
   }
 }
 
-resource "aws_cloudwatch_event_rule" "daily_check" {
-  name                = "cost-alerter-daily"
-  schedule_expression = "rate(1 day)"
+resource "aws_cloudwatch_event_rule" "weekly_check" {
+  name                = "cost-alerter-weekly"
+  schedule_expression = "rate(7 days)"
 }
 
 resource "time_sleep" "wait_for_event" {
-  depends_on      = [aws_cloudwatch_event_rule.daily_check]
+  depends_on      = [aws_cloudwatch_event_rule.weekly_check]
   create_duration = "30s"
 }
 
 resource "aws_cloudwatch_event_target" "lambda_target" {
-  rule       = aws_cloudwatch_event_rule.daily_check.name
+  rule       = aws_cloudwatch_event_rule.weekly_check.name
   arn        = aws_lambda_function.cost_alerter.arn
   depends_on = [time_sleep.wait_for_event]
 }
@@ -105,7 +105,7 @@ resource "aws_lambda_permission" "allow_eventbridge" {
   action        = "lambda:InvokeFunction"
   principal     = "events.amazonaws.com"
   function_name = aws_lambda_function.cost_alerter.function_name
-  source_arn    = aws_cloudwatch_event_rule.daily_check.arn
+  source_arn    = aws_cloudwatch_event_rule.weekly_check.arn
 }
 
 output "topic_arn" {
