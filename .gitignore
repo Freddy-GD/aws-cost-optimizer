@@ -11,6 +11,15 @@ venv/
 *.zip
 package/
 
+# Terraform
+**/.terraform/*
+*.tfstate
+*.tfstate.*
+*.tfvars
+*.tfvars.json
+crash.log
+crash.*.log
+
 # OS/editor cruft
 .DS_Store
 .vscode/

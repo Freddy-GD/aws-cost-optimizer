@@ -34,6 +34,7 @@ def get_ebs_price_per_gb(volume_type=VOLUME_TYPE, region=PRICING_REGION):
         priceDim_key = list(resp_dict['terms']['OnDemand'][ondemand_key]['priceDimensions'].keys())[0] 
         price_str = resp_dict['terms']['OnDemand'][ondemand_key]['priceDimensions'][priceDim_key]['pricePerUnit']['USD'] 
         price = float(price_str)
+        return price
     except (KeyError, ValueError) as e: 
         print (f"Pricing lookup failed: {e}")
         price = 0.08
@@ -88,6 +89,3 @@ def lambda_handler(event, context):
     sns.publish(TopicArn=SNS_TOPIC_ARN, Subject='Weekly cost audit', Message=report)
 
     return report  # no statusCode/body shape — that's an API Gateway proxy-integration convention, not relevant for a schedule-triggered Lambda with no caller reading the return value
-
-
-
