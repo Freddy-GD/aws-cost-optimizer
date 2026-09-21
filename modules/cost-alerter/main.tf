@@ -18,9 +18,6 @@ terraform {
 
 resource "aws_sns_topic" "cost_alerts" {
   name = var.topic_name
-  tags = {
-    "cost-center" = "personal-learning"
-  }
 }
 
 resource "aws_sns_topic_subscription" "email_alerts" {
