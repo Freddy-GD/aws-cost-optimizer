@@ -48,10 +48,13 @@ These numbers are calculated live against AWS's actual published pricing, not in
 - **Amazon SNS** — email delivery of the report
 - **AWS Price List API** — live gp3 storage pricing, not a hardcoded constant
 - **IAM** — least-privilege inline policy scoped to `ec2:Describe*`, `pricing:GetProducts`, `sns:Publish`
+- **Terraform** — infrastructure (Lambda, IAM role/policy, EventBridge rule/target, SNS topic/subscription) provisioned as code, organized as a reusable module; remote state managed on HCP Terraform with dynamic AWS credentials (OIDC) and a Sentinel policy enforcing cost-tracking tags
 
 ## Engineering decisions worth knowing about
 
 **Caught and fixed a real pricing bug.** The first working version returned $0.005/GB instead of the correct $0.08/GB for gp3 storage — off by roughly 16x. Root cause: the AWS Pricing API filter only constrained on `volumeApiName` and `location`, which can match multiple products for the same volume type (storage, provisioned IOPS, and provisioned throughput are separate priced dimensions for gp3). Fixed by adding an explicit `productFamily: Storage` filter, then verified the corrected output against AWS's published rate before trusting the number.
+
+**Found a second, unrelated bug during the Terraform migration.** `get_ebs_price_per_gb()`'s success path was missing a `return` statement — it worked by accident whenever the pricing lookup happened to fail and fall back to a hardcoded default, but crashed with `TypeError: unsupported operand type(s) for *: 'int' and 'NoneType'` the moment a real pricing lookup succeeded and any unattached volume existed to price. Caught by actually invoking the function end-to-end rather than trusting a clean deploy.
 
 **Idle Elastic IP check simplified from two conditions to one.** Originally checked for the absence of both `InstanceId` and `NetworkInterfaceId`. Confirmed against AWS documentation that in the VPC platform (not the deprecated EC2-Classic platform), any EIP with an `InstanceId` always has a `NetworkInterfaceId` too — every VPC instance's address lives on an ENI. The `InstanceId` check was redundant legacy logic and was removed.
 
@@ -65,15 +68,21 @@ These numbers are calculated live against AWS's actual published pricing, not in
 
 ## Setup
 
-1. Create the Lambda (Python 3.12), paste in `lambda_function.py`.
-2. Create an SNS topic, subscribe your email.
-3. Set environment variables on the Lambda: `SNS_TOPIC_ARN` (required), `PRICING_REGION` and `VOLUME_TYPE` (optional, sensible defaults built in).
-4. Attach an inline IAM policy to the Lambda's execution role granting `ec2:DescribeVolumes`, `ec2:DescribeAddresses`, `ec2:DescribeInstances`, `pricing:GetProducts`, and `sns:Publish`.
-5. Add an EventBridge trigger from the Lambda console ("Add trigger" → EventBridge → new rule, `rate(7 days)`) — starting from the Lambda side auto-grants the invoke permission EventBridge needs.
-6. Test manually via the Lambda console's Test tab before waiting on the schedule.
+1. Clone the repo, `cd` into it.
+2. Create `terraform.tfvars` (gitignored, not committed) with:
+
+```hcl
+   topic_name  = "your-topic-name"
+   alert_email = "your-email@example.com"
+```
+
+3. `terraform init`
+4. `terraform plan` — review what will be created
+5. `terraform apply`
+6. Check your email for the SNS subscription confirmation link and click it — required before any alert can actually deliver.
+7. Test manually via the Lambda console's Test tab before waiting on the schedule.
 
 ## Roadmap (phase 2)
 
-- **Terraform** for the infrastructure (Lambda, IAM role, EventBridge rule, SNS topic) — currently provisioned manually.
 - **`moto`-based unit tests** — mock AWS calls locally for fast, offline test coverage with `pytest`.
 - **CloudTrail integration** for real EIP idle-duration calculation, replacing the 30-day assumption.
