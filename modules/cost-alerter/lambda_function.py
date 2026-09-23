@@ -80,12 +80,15 @@ def lambda_handler(event, context):
     # event: metadata about the EventBridge schedule trigger (unused here — this Lambda
     #   runs the same scan regardless of why it fired)
     # context: Lambda runtime info (request ID, time remaining, log group) — unused here too
-    findings, total = find_waste()
+    try:
+        findings, total = find_waste()
 
-    report = f"Cost audit {datetime.now(timezone.utc):%Y-%m-%d}\n"
-    report += f"Estimated monthly waste: ${total:.2f}\n\n"
-    report += "\n".join(findings or ["No waste found."])
-
+        report = f"Cost audit {datetime.now(timezone.utc):%Y-%m-%d}\n"
+        report += f"Estimated monthly waste: ${total:.2f}\n\n"
+        report += "\n".join(findings or ["No waste found."])
+    except Exception as e: 
+        sns.publish(TopicArn=SNS_TOPIC_ARN, Subject='Cost audit FAILED', Message=f"Audit failed: {e}")
+        raise
     sns.publish(TopicArn=SNS_TOPIC_ARN, Subject='Weekly cost audit', Message=report)
 
     return report  # no statusCode/body shape — that's an API Gateway proxy-integration convention, not relevant for a schedule-triggered Lambda with no caller reading the return value

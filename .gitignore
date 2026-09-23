@@ -1,5 +1,4 @@
 # Secrets / local config — never commit
-.env.example
 
 # Python
 __pycache__/

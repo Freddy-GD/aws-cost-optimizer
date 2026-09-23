@@ -1,9 +1,3 @@
-variable "region" {
-  description = "The AWS region to deploy resources in"
-  type        = string
-  default     = "us-east-1"
-}
-
 variable "topic_name" {
   description = "The name of the SNS topic"
   type        = string

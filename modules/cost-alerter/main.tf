@@ -70,6 +70,8 @@ resource "aws_lambda_function" "cost_alerter" {
   role             = aws_iam_role.lambda_exec.arn
   handler          = "lambda_function.lambda_handler"
   runtime          = "python3.12"
+  memory_size      = 128
+  timeout          = 30
   filename         = data.archive_file.lambda_zip.output_path
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
