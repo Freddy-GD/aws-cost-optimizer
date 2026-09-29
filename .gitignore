@@ -1,3 +1,10 @@
+# Python
+__pycache__/
+*.pyc
+.venv/
+venv/
+
+
 # Packaging artifacts (if you zip the Lambda for deployment)
 *.zip
 package/
