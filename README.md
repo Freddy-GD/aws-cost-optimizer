@@ -31,7 +31,9 @@ The Lambda checks for three things on every run:
 
 Deliberately kept human-in-the-loop: the tool surfaces candidates for review, it never auto-deletes anything. An idle-looking Elastic IP might be intentionally reserved for a planned failover; automated deletion based on incomplete signals would be a liability, not a feature.
 
-## Real results (test run, August 2026)
+## Real results
+
+**Test run, August 2026 (original manual version):**
 
 | Finding                   | Detail                          | Estimated cost |
 | ------------------------- | ------------------------------- | -------------- |
@@ -39,7 +41,15 @@ Deliberately kept human-in-the-loop: the tool surfaces candidates for review, it
 | Idle Elastic IP           | 1 address, assumed idle 30 days | ~$3.60/mo      |
 | **Total estimated waste** |                                 | **$3.92/mo**   |
 
-These numbers are calculated against AWS's actual published pricing where possible. EBS pricing is queried live from the AWS Price List API. EIP idle cost uses a verified constant rather than a live lookup, documented under Known limitations below.
+**Test run, September 2026 (current Terraform-managed version):**
+
+| Finding                   | Detail                          | Estimated cost |
+| ------------------------- | ------------------------------- | -------------- |
+| Unattached volume         | 1 GB, gp3                       | ~$0.08/mo      |
+| Idle Elastic IP           | 1 address, assumed idle 30 days | ~$3.60/mo      |
+| **Total estimated waste** |                                 | **$3.68/mo**   |
+
+Both runs are calculated against AWS's actual published pricing where possible. EBS pricing is queried live from the AWS Price List API. EIP idle cost uses a verified constant rather than a live lookup, documented under Known limitations below.
 
 ## Architecture / stack
 
@@ -60,33 +70,4 @@ These numbers are calculated against AWS's actual published pricing where possib
 
 **Config is environment-driven, not hardcoded.** The SNS topic ARN, pricing region, and volume type are all read from Lambda environment variables, not embedded in the code, so the same code works unchanged across environments if rebuilt or redeployed.
 
-**Handler fails loudly instead of failing silently.** The whole point of this tool is to alert on problems; a monitoring tool that silently stops reporting the moment it hits its own bug is a real risk. `lambda_handler` wraps the scan in a try/except: on failure, it publishes a distinct "Cost audit FAILED" alert with the error message before re-raising, so a broken audit is never indistinguishable from a quiet, healthy account.
-
-## Known limitations (intentional, documented, not oversights)
-
-- **Idle EIP cost assumes a full 30-day month.** Getting the actual idle duration would require querying CloudTrail for the most recent `DisassociateAddress` event per IP. Real additional scope, not a quick fix, and planned as a phase 2 enhancement rather than built into v1.
-- **No distinction between accidentally idle and intentionally reserved resources.** The tool flags anything technically unattached; a human should review findings before deleting anything, since some may be deliberately held (e.g. reserved ahead of a planned deployment).
-- **EBS pricing lookup has a fallback.** If the Price List API call fails or its response shape changes unexpectedly, the code falls back to a conservative $0.08/GB estimate and logs the failure via `print()` (captured in CloudWatch Logs) rather than crashing the whole scan.
-- **EIP idle cost is a verified constant, not a live lookup.** Unlike EBS, this is hardcoded rather than queried at runtime. AWS's public IPv4 pricing is primarily exposed through Cost and Usage Reports rather than the Pricing List API's product catalog, making a clean live lookup meaningfully more involved than a single `get_products` call. The rate used ($0.005/hr) was manually verified against AWS's February 2024 public IPv4 pricing change. A CUR-based lookup is a real phase 2 candidate, not attempted in v1.
-
-## Setup
-
-1. Clone the repo, `cd` into it.
-2. Create `terraform.tfvars` (gitignored, not committed) with:
-
-```hcl
-   topic_name  = "your-topic-name"
-   alert_email = "your-email@example.com"
-```
-
-3. `terraform init`
-4. `terraform plan`, review what will be created
-5. `terraform apply`
-6. Check your email for the SNS subscription confirmation link and click it. Required before any alert can actually deliver.
-7. Test manually via the Lambda console's Test tab before waiting on the schedule.
-
-## Roadmap (phase 2)
-
-- **`moto`-based unit tests**: mock AWS calls locally for fast, offline test coverage with `pytest`.
-- **CloudTrail integration** for real EIP idle-duration calculation, replacing the 30-day assumption.
-- **CUR-based EIP pricing lookup**, replacing the hardcoded constant.
+**Handler fails loudly instead of failing silently.** The whole
